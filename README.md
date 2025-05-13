@@ -2,7 +2,7 @@
 
 This project is an interactive web-based simulation of the deterministic grid game presented as Problem 1 in the 2014 Utah Math Olympiad. It allows users to play the game, visualize the rules, and understand the optimal winning strategy for Player 2. The simulation includes analysis text and charts explaining the game's properties.
 
-(**[live link]**(https://raeef1001.github.io/-Utah-Math-Olympiad-2014-P1--Board-Game-Version/))
+[**Live link**](https://raeef1001.github.io/-Utah-Math-Olympiad-2014-P1--Board-Game-Version/)
 
 ![Screenshot of the Game Simulation](gameplay_ss.png)
 
