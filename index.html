@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis of a Deterministic Grid Game (UMO 2014 P1)</title>
+    <!-- Include Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #1a1d21;
+            --bg-medium: #212529;
+            --bg-light: #343a40;
+            --text-primary: #e8eaed; /* Slightly brighter primary text */
+            --text-secondary: #bdc1c6; /* Slightly brighter secondary text */
+            --text-muted: #80868b;
+            --grid-line: #5f6368; /* Darker grid lines for less distraction */
+            --player1-color: #60d1bc; /* Cyan/Green */
+            --player1-rgb: 96, 209, 188; /* For Chart.js opacity */
+            --player2-color: #f28b82; /* Coral/Red (Slightly softer red) */
+            --player2-rgb: 242, 139, 130; /* For Chart.js opacity */
+            --valid-move-color: rgba(253, 187, 45, 0.6); /* Gold highlight - slightly stronger */
+            --valid-move-rgb: 253, 187, 45;
+            --border-color: #495057;
+            --code-bg: #282c34; /* Background for code/notation */
+            --accent-color: #8ab4f8; /* A light blue for accents */
+            --accent-rgb: 138, 180, 248;
+        }
+
+        /* --- Base Styles --- */
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; /* Modern font stack */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 25px; /* More padding */
+            box-sizing: border-box;
+            line-height: 1.7; /* Increased line height */
+        }
+
+        #pageContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 1150px; /* Wider max-width for paper layout */
+            gap: 30px;
+        }
+
+        #header h1 {
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            text-align: center;
+            font-weight: 500; /* Slightly less heavy */
+            font-size: 1.8em;
+        }
+
+        #header p.subtitle {
+            color: var(--text-secondary);
+            text-align: center;
+            margin-top: 0;
+            font-size: 1em;
+        }
+
+        #gameAnalysisContainer {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 40px; /* Increased gap */
+            width: 100%;
+        }
+
+        /* --- Game Area Styles --- */
+        #gameArea {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            flex: 1 1 400px; /* Flexible basis, minimum 400px */
+            max-width: 450px;
+        }
+
+        #canvasContainer {
+            width: 100%; /* Take full width of its container */
+            max-width: 400px;
+            aspect-ratio: 1 / 1;
+            background-color: var(--bg-medium);
+            box-shadow: 0 2px 12px rgba(var(--player1-rgb), 0.08); /* Softer shadow */
+            border: 1px solid var(--border-color);
+            position: relative;
+            border-radius: 4px;
+        }
+
+        #boardCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        #statusArea {
+            text-align: center;
+            font-size: 1em;
+            min-height: 45px;
+            background-color: var(--bg-light);
+            padding: 12px 20px;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+            width: 100%; /* Full width */
+            box-sizing: border-box;
+            line-height: 1.4;
+            color: var(--text-primary);
+        }
+
+        #controls button {
+            padding: 10px 25px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            background: linear-gradient(145deg, var(--accent-color), #6a9ef0); /* Use accent color */
+            color: #ffffff;
+            border: none;
+            border-radius: 5px;
+            transition: all 0.2s ease;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+        }
+        #controls button:hover {
+             background: linear-gradient(145deg, #a8c7fa, var(--accent-color));
+             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+             transform: translateY(-1px);
+        }
+        #controls button:active {
+            transform: translateY(0px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }
+
+        /* --- Explanation Area Styles --- */
+        #explanationArea {
+            flex: 2 1 550px; /* Allow more space */
+            padding: 30px; /* More padding */
+            background-color: var(--bg-medium);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary); /* Default text secondary */
+        }
+        #explanationArea h2, #explanationArea h3, #explanationArea h4 {
+            color: var(--text-primary); /* Headings primary color */
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        #explanationArea h3 {
+            font-size: 1.3em;
+            border-bottom: none; /* No border for h3 */
+            color: var(--accent-color); /* Accent color for subheadings */
+            margin-top: 30px;
+        }
+        #explanationArea h4 {
+            font-size: 1.1em;
+            border-bottom: none;
+            color: var(--text-primary);
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        #explanationArea p, #explanationArea ul, #explanationArea ol {
+            font-size: 0.98em; /* Slightly larger text */
+            margin-bottom: 15px;
+        }
+        #explanationArea ul, #explanationArea ol {
+            padding-left: 25px;
+        }
+        #explanationArea li {
+            margin-bottom: 8px;
+        }
+        #explanationArea code, .notation {
+            background-color: var(--code-bg);
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', Consolas, Monaco, monospace; /* Code font */
+            font-size: 0.92em;
+            color: var(--text-secondary);
+        }
+        .player1-text { color: var(--player1-color); font-weight: 600; }
+        .player2-text { color: var(--player2-color); font-weight: 600; }
+        .terminal-state { font-style: italic; color: var(--accent-color); }
+        .strategy-point { font-weight: 600; color: var(--text-primary); }
+
+        /* --- Visualization Styles --- */
+        .visualization-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px dashed var(--border-color);
+        }
+        .figure-container {
+            background-color: var(--bg-light);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .figure-container canvas {
+            max-width: 100%; /* Make chart canvas responsive */
+            background-color: var(--bg-light); /* Match container */
+             border-radius: 4px;
+        }
+        .figure-caption {
+            font-size: 0.9em;
+            text-align: center;
+            color: var(--text-muted);
+            margin-top: 10px;
+        }
+
+        /* --- Utility and Emphasis Styles --- */
+        .math-insight {
+            border: 1px solid var(--accent-color);
+            background-color: rgba(var(--accent-rgb), 0.05); /* Light blue bg */
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            color: var(--text-secondary);
+        }
+        .math-insight strong {
+             color: var(--accent-color); /* Accent blue */
+             font-weight: 600;
+        }
+        .winner-text { font-weight: bold; font-size: 1.1em; }
+        .corner-label { color: var(--text-muted); font-weight: bold;}
+        .stone-count { color: var(--text-secondary); }
+        .turn-number { color: var(--text-secondary); }
+
+    </style>
+    <!-- Consider adding a code font like Fira Code -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="pageContainer">
+        <div id="header">
+            <h1>Analysis of a Deterministic Grid Game (UMO 2014 P1)</h1>
+            <p class="subtitle">Investigating Optimal Strategies, Game Properties, and Visual Analysis</p>
+        </div>
+
+        <div id="gameAnalysisContainer">
+            <div id="gameArea">
+                 <!-- Game Canvas, Status, Controls -->
+                <div id="canvasContainer"><canvas id="boardCanvas"></canvas></div>
+                <div id="statusArea">Initializing Game...</div>
+                <div id="controls"><button id="restartButton">Restart Simulation</button></div>
+            </div>
+
+            <div id="explanationArea">
+                <h2>Abstract</h2>
+                <p>This document analyzes a two-player, perfect information, deterministic combinatorial game presented as Problem 1 in the 2014 Utah Math Olympiad. The game involves moving a single token (<span class="player1-text">Green</span>) on a grid while placing blocking tokens (<span class="player2-text">Red</span>). We formally define the game, analyze the optimal winning strategy, and determine invariant properties such as the game length and the number of blocking tokens placed under optimal play. We demonstrate that the second player (<span class="player2-text">Player 2</span>) possesses a winning strategy, forcing the first player (<span class="player1-text">Player 1</span>) onto a corner intersection in a fixed number of moves, resulting in exactly 15 blocking tokens on the board.</p>
+
+                <h2>1. Game Definition and Formalism</h2>
+                <p>The game is played on the set of intersections <code class="notation">I</code> of an 8x8 grid. These intersections can be represented by integer coordinates <code class="notation">(x, y)</code> where <code class="notation">0 ≤ x ≤ 8</code> and <code class="notation">0 ≤ y ≤ 8</code>.</p>
+
+                <h3>1.1 Game State</h3>
+                <p>A game state <code class="notation">S</code> can be defined as a tuple: <code class="notation">S = (P<sub>G</sub>, B<sub>R</sub>, P<sub>turn</sub>)</code>, where:</p>
+                <ul>
+                    <li><code class="notation">P<sub>G</sub> ∈ I</code> is the coordinate pair representing the position of the single <span class="player1-text">Green</span> stone.</li>
+                    <li><code class="notation">B<sub>R</sub> ⊂ I</code> is the set of coordinate pairs representing the positions occupied by <span class="player2-text">Red</span> stones.</li>
+                    <li><code class="notation">P<sub>turn</sub> ∈ {1, 2}</code> indicates the current player (<span class="player1-text">Player 1</span> or <span class="player2-text">Player 2</span>).</li>
+                </ul>
+                <p>The initial state is <code class="notation">S<sub>0</sub> = ((4, 4), ∅, 1)</code>.</p>
+
+                <h3>1.2 Player Actions</h3>
+                <p>Let <code class="notation">Adj(P)</code> denote the set of orthogonally adjacent intersections to position <code class="notation">P</code> within the grid bounds <code class="notation">I</code>.</p>
+                <ol>
+                    <li>
+                        <p><span class="strategy-point">Player 1 Action (Move Green, Place Red):</span> From state <code class="notation">S = (P<sub>G</sub>, B<sub>R</sub>, 1)</code>, Player 1 chooses a target position <code class="notation">P'<sub>G</sub> ∈ Adj(P<sub>G</sub>)</code> such that <code class="notation">P'<sub>G</sub> ∉ B<sub>R</sub></code> and <code class="notation">P'<sub>G</sub> ≠ P<sub>G</sub></code>. The resulting state is <code class="notation">S' = (P'<sub>G</sub>, B<sub>R</sub> ∪ {P<sub>G</sub>}, 2)</code>.</p>
+                        <p>The set of available actions for Player 1, <code class="notation">A<sub>1</sub>(S)</code>, is the set of all valid target positions <code class="notation">P'<sub>G</sub></code>.</p>
+                    </li>
+                    <li>
+                        <p><span class="strategy-point">Player 2 Action (Place Red):</span> From state <code class="notation">S = (P<sub>G</sub>, B<sub>R</sub>, 2)</code>, Player 2 chooses a target position <code class="notation">P<sub>R</sub> ∈ I</code> such that <code class="notation">P<sub>R</sub> ∉ B<sub>R</sub></code> and <code class="notation">P<sub>R</sub> ≠ P<sub>G</sub></code>. The resulting state is <code class="notation">S' = (P<sub>G</sub>, B<sub>R</sub> ∪ {P<sub>R</sub>}, 1)</code>.</p>
+                    </li>
+                </ol>
+
+                <h3>1.3 Terminal States and Winning Conditions</h3>
+                <p>Let <code class="notation">C = {(0,0), (8,0), (0,8), (8,8)}</code> be the set of corner intersections.</p>
+                <ul>
+                    <li><span class="terminal-state">Player 1 Loses (Player 2 Wins)</span> if the game transitions to a state <code class="notation">S' = (P'<sub>G</sub>, B'<sub>R</sub>, 2)</code> where <code class="notation">P'<sub>G</sub> ∈ C</code>. This occurs immediately after Player 1's move.</li>
+                    <li><span class="terminal-state">Player 2 Loses (Player 1 Wins)</span> if, at the beginning of Player 1's turn (state <code class="notation">S = (P<sub>G</sub>, B<sub>R</sub>, 1)</code>), the set of valid actions <code class="notation">A<sub>1</sub>(S)</code> is empty, <span class="strategy-point">and</span> <code class="notation">P<sub>G</sub> ∉ C</code>.</li>
+                </ul>
+                <p>Note: If <code class="notation">A<sub>1</sub>(S)</code> is empty and <code class="notation">P<sub>G</sub> ∈ C</code>, Player 1 has already lost on the previous move according to the first condition.</p>
+
+                <h2>2. Optimal Strategy Analysis</h2>
+                <p>As a finite, perfect information game with no possibility of infinite loops or draws under the defined rules, one player must have a winning strategy. Through analysis, we determine this is Player 2.</p>
+
+                <h3>2.1 Player 2's Pairing/Forcing Strategy</h3>
+                <p>Player 2 can employ a strategy based on symmetry and forcing moves. The core idea is to conceptually 'pair' intersections or define a target region and consistently block Player 1's attempts to move away from that target.</p>
+                <p>A successful strategy for Player 2 involves:</p>
+                <ol>
+                    <li><span class="strategy-point">Target Selection:</span> Implicitly choose a target corner (e.g., Corner B at (8,0)).</li>
+                    <li><span class="strategy-point">Reactive Blocking:</span> After Player 1 moves the <span class="player1-text">Green</span> stone (<code class="notation">P<sub>G</sub> → P'<sub>G</sub></code>), Player 2 places their <span class="player2-text">Red</span> stone strategically. If Player 1 moves 'away' from the target corner's required directions (e.g., moving Left or Down when the target is B), Player 2's move is less critical. However, if Player 1 moves 'towards' the target corner (e.g., Up or Right towards B), Player 2 places their <span class="player2-text">Red</span> stone at the intersection that blocks the reverse of Player 1's last 'progressing' move. Crucially, P2 must *always* block the immediate retreat path P1 just created (the spot <code class="notation">P<sub>G</sub></code> where P1 placed an auto-Red). P2's *additional* strategic placement further restricts movement, often blocking the other non-progressing direction.
+                    </li>
+                    <li><span class="strategy-point">Forcing Progress:</span> This reactive blocking ensures that Player 1 cannot easily reverse progress towards the target corner. Each pair of moves (P1 moves, P2 blocks) effectively reduces the number of available non-progressing moves, eventually funnelling Player 1 towards the chosen corner.</li>
+                </ol>
+
+                <!-- NEW Visualization Section -->
+                <div class="visualization-section">
+                    <h3>Visual Analysis of Optimal Play</h3>
+
+                    <h4>Figure 1: Conceptual Strategy Illustration</h4>
+                    <p>Player 2's core strategy involves preventing Player 1 from reversing progress towards a target corner. Imagine Player 2 targeting corner B (top-right). If Player 1 (<span class="player1-text">G</span>) moves Up (towards the target row), Player 2 places Red (<span class="player2-text">R</span>) below the new <span class="player1-text">G</span>, blocking the immediate downward retreat. The automatically placed <span class="player2-text">R</span> (denoted 'r') already blocks the original spot.</p>
+                    <div class="figure-container" style="text-align: center; font-family: monospace; white-space: pre; font-size: 0.9em; line-height: 1.2; background-color: var(--code-bg); color: var(--text-secondary);">
+. . . . . . . . .
+. . . . . . . . .
+. . . . <span style="color: var(--text-muted); font-weight: bold;">B</span> . . . .   Target Corner
+. . . . ^ . . . .   P1 moves Up
+. . . . <span class="player1-text">G</span> . . . .   New State after P1 move
+. . . . <span class="player2-text">r</span> . . . .   r = P1's auto-placed Red
+. . . . . . . . .
+. . . . . . . . .
+. . . . . . . . .
+
+Then P2 Places Strategic Red below G:
+. . . . . . . . .
+. . . . . . . . .
+. . . . <span style="color: var(--text-muted); font-weight: bold;">B</span> . . . .
+. . . . . . . . .
+. . . . <span class="player1-text">G</span> . . . .
+. . . <span class="player2-text">R</span> <span class="player2-text">r</span> . . .   P2 blocks retreat
+. . . . . . . . .
+. . . . . . . . .
+. . . . . . . . .
+                    </div>
+                    <p class="figure-caption">Fig 1: Simple illustration of P2 blocking P1's retreat after an upward move (targeting B).</p>
+
+                    <h4>Figure 2: Red Stone Accumulation</h4>
+                    <p>This graph shows the cumulative number of <span class="player2-text">Red</span> stones on the board after each player completes their action within a turn cycle. Turn <code class="notation">k.1</code> represents the state after P1 moves in turn <code class="notation">k</code>, and <code class="notation">k.2</code> represents the state after P2 places their stone in turn <code class="notation">k</code>. The game ends when P1 makes their 8th move (start of Turn 8), resulting in the final 15th red stone.</p>
+                    <div class="figure-container">
+                        <canvas id="redStoneChart"></canvas>
+                    </div>
+                     <p class="figure-caption">Fig 2: Cumulative Red Stones vs. Player Action within Turns.</p>
+
+                     <h4>Figure 3: Distance to Target Corner</h4>
+                     <p>This graph illustrates the effectiveness of Player 2's forcing strategy by tracking the Manhattan distance (<code class="notation">|Δx| + |Δy|</code>) of the <span class="player1-text">Green</span> stone from a target corner (e.g., corner B at (8,0)) over the course of the game. While Player 1 might attempt deviations, the optimal strategy by Player 2 ensures a consistent, albeit not necessarily linear, reduction in this distance until it reaches 0 when Player 1 is forced onto the corner.</p>
+                     <div class="figure-container">
+                         <canvas id="distanceChart"></canvas>
+                     </div>
+                      <p class="figure-caption">Fig 3: Manhattan Distance of Green Stone to Target Corner B (8,0) vs. Turn (Representative Optimal Path).</p>
+                 </div>
+
+                <h2>3. Mathematical Properties and Invariants</h2>
+
+                <h3>3.1 Path Length to Corner</h3>
+                <p>The Manhattan distance from the center <code class="notation">P<sub>G0</sub> = (4, 4)</code> to any corner <code class="notation">C<sub>i</sub> ∈ C</code> is <code class="notation">|x<sub>corner</sub> - 4| + |y<sub>corner</sub> - 4| = 4 + 4 = 8</code>. This implies that the <span class="player1-text">Green</span> stone must make a minimum of 8 individual steps (moves) to reach any corner intersection.</p>
+
+                <h3>3.2 Game Length</h3>
+                <p>Since Player 1 makes one move per turn, and they must make exactly 8 moves to reach a corner under Player 2's forcing strategy, Player 1 will make their 8th move (the losing move onto the corner) at the beginning of Turn 8. Player 2 makes their final placement on Turn 7.</p>
+                <p>The game effectively spans 7 full turns plus Player 1's final move. The total number of player actions (where an action results in a state change) is 8 (P1 moves) + 7 (P2 placements) = 15 actions that result in a <span class="player2-text">Red</span> stone being placed.</p>
+
+                <h3>3.3 Red Stone Count Invariant</h3>
+                <div class="math-insight">
+                    <strong>Invariant Property:</strong> Under optimal play leading to a Player 2 win by forcing Player 1 to a corner:
+                    <ul>
+                        <li>Player 1 makes 8 moves. Each move leaves one <span class="player2-text">Red</span> stone at the previous position. (Total: 8 <span class="player2-text">Red</span> stones from P1).</li>
+                        <li>Player 2 makes 7 strategic placements (on turns 1 through 7). (Total: 7 <span class="player2-text">Red</span> stones from P2).</li>
+                    </ul>
+                    Therefore, the total number of <span class="player2-text">Red</span> stones on the board at the end of the game is consistently <code class="notation">8 + 7 = <strong>15</strong></code>. This count is independent of the specific corner targeted or the exact path taken, provided Player 2 executes the winning strategy. (See Figure 2 for accumulation).
+                </div>
+
+                <h2>4. Variations and Future Work</h2>
+                <p>The video proposes a variation with multiple initial <span class="player1-text">Green</span> stones. Analyzing such variations introduces significant complexity:</p>
+                <ul>
+                    <li>The state space increases dramatically.</li>
+                    <li>Pairing strategies become more complex or may not apply directly.</li>
+                    <li>Defining winning conditions requires careful consideration (e.g., trapping *all* green stones vs. forcing *one* to a corner).</li>
+                    <li>Determining if Player 1 gains an advantage requires separate analysis, potentially involving computational methods for larger variations.</li>
+                </ul>
+                <p>Further investigation could explore the impact of board size (<code class="notation">N x N</code> grid) on the winning strategy and game invariants for the original 1-stone game.</p>
+
+                <h2>5. Conclusion</h2>
+                <p>The Utah Math Olympiad 2014 P1 game, despite its simple rules, exhibits a clear strategic advantage for the second player. Player 2 can guarantee a win by employing a reactive blocking strategy that forces Player 1 towards a corner intersection. This deterministic outcome occurs after precisely 8 moves by Player 1 and 7 placements by Player 2, resulting in a fixed final state of 15 <span class="player2-text">Red</span> stones on the board, regardless of the specific path forced by Player 2.</p>
+
+            </div> <!-- End #explanationArea -->
+        </div> <!-- End #gameAnalysisContainer -->
+    </div> <!-- End #pageContainer -->
+
+    <script>
+        // --- JavaScript Game Logic ---
+        const canvas = document.getElementById('boardCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const statusArea = document.getElementById('statusArea');
+        const restartButton = document.getElementById('restartButton');
+
+        // Constants
+        const GRID_SIZE = 8;
+        const INTERSECTIONS = GRID_SIZE + 1;
+        const PLAYER1 = 1;
+        const PLAYER2 = 2;
+        const EMPTY = 0;
+        const GREEN = 1;
+        const RED = 2;
+
+        // Dynamic Sizes
+        let CELL_SIZE, STONE_RADIUS, HIGHLIGHT_RADIUS, LABEL_FONT_SIZE;
+
+        // Colors (from CSS variables, provides fallback)
+        const COLOR_BACKGROUND = getComputedStyle(document.documentElement).getPropertyValue('--bg-medium').trim() || '#212529';
+        const COLOR_GRID = getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim() || '#5f6368';
+        const COLOR_GREEN_STONE = getComputedStyle(document.documentElement).getPropertyValue('--player1-color').trim() || '#60d1bc';
+        const COLOR_GREEN_HIGHLIGHT = getComputedStyle(document.documentElement).getPropertyValue('--player1-highlight').trim() || '#a0fff0';
+        const COLOR_RED_STONE = getComputedStyle(document.documentElement).getPropertyValue('--player2-color').trim() || '#f28b82';
+        const COLOR_RED_HIGHLIGHT = getComputedStyle(document.documentElement).getPropertyValue('--player2-highlight').trim() || '#ffbdb8';
+        const COLOR_VALID_MOVE = getComputedStyle(document.documentElement).getPropertyValue('--valid-move-color').trim() || 'rgba(253, 187, 45, 0.6)';
+        const COLOR_CORNER_LABEL = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#80868b';
+        const COLOR_ACCENT = getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim() || '#8ab4f8';
+        const COLOR_TEXT_PRIMARY = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#e8eaed';
+        const COLOR_TEXT_SECONDARY = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#bdc1c6';
+
+
+        const CORNERS = [
+            { x: 0, y: 0, label: 'A' },
+            { x: GRID_SIZE, y: 0, label: 'B' },
+            { x: 0, y: GRID_SIZE, label: 'C' },
+            { x: GRID_SIZE, y: GRID_SIZE, label: 'D' }
+        ];
+
+        // Game State
+        let boardState; // Array[INTERSECTIONS][INTERSECTIONS] -> 0: empty, 1: green, 2: red
+        let greenStonePos; // {x, y}
+        let currentPlayer; // 1 or 2
+        let turnNumber;
+        let redStoneCount;
+        let gameOver;
+        let winner; // null, 1, 2
+        let validMovesCache = [];
+
+        // Helper function for color darkening (if tinycolor is not used)
+        function darkenColor(hex, percent) {
+             hex = hex.replace(/^\s*#|\s*$/g, '');
+            if(hex.length == 3){ hex = hex.replace(/(.)/g, '$1$1'); }
+            let r = parseInt(hex.substring(0, 2), 16), g = parseInt(hex.substring(2, 4), 16), b = parseInt(hex.substring(4, 6), 16);
+            const factor = 1 - percent / 100;
+            r = Math.max(0, Math.min(255, Math.floor(r * factor))); g = Math.max(0, Math.min(255, Math.floor(g * factor))); b = Math.max(0, Math.min(255, Math.floor(b * factor)));
+            return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        }
+        // Make a dummy tinycolor object if the library isn't loaded
+        const tinycolor = window.tinycolor || function(color) {
+            // Basic implementation if tinycolor lib not present
+            return {
+                darken: function(amount) {
+                    return {
+                        toString: () => darkenColor(color, amount)
+                    };
+                },
+                toString: function() { return color; }
+            };
+        };
+
+        function resizeCanvas() {
+            const containerWidth = canvasContainer.offsetWidth;
+             // Ensure minimum size for very small containers if needed
+             const size = Math.max(200, containerWidth); // Example minimum size
+            if (!canvas || !ctx) return;
+            canvas.width = size;
+            canvas.height = size; // Keep it square
+            CELL_SIZE = canvas.width / INTERSECTIONS;
+            STONE_RADIUS = CELL_SIZE * 0.35;
+            HIGHLIGHT_RADIUS = CELL_SIZE * 0.40; // Make highlight slightly larger than stone
+             LABEL_FONT_SIZE = Math.max(10, CELL_SIZE * 0.4); // Ensure minimum size for labels
+            drawBoard();
+        }
+
+        function initializeGame() {
+            boardState = Array(INTERSECTIONS).fill(0).map(() => Array(INTERSECTIONS).fill(EMPTY));
+            greenStonePos = { x: Math.floor(GRID_SIZE / 2), y: Math.floor(GRID_SIZE / 2) }; // Center (4,4)
+            if (greenStonePos.x >= 0 && greenStonePos.x < INTERSECTIONS && greenStonePos.y >= 0 && greenStonePos.y < INTERSECTIONS) {
+                 boardState[greenStonePos.x][greenStonePos.y] = GREEN;
+            } else { console.error("Initial green stone pos error"); statusArea.innerHTML = "Initialization Error"; return; }
+            currentPlayer = PLAYER1;
+            turnNumber = 1;
+            redStoneCount = 0;
+            gameOver = false;
+            winner = null;
+            validMovesCache = [];
+            resizeCanvas(); // Use resize to draw initially
+            calculateValidMoves();
+            updateStatusDisplay();
+            initializeCharts(); // Initialize charts on game start/restart
+        }
+
+        function getBoardCoordinates(canvasX, canvasY) {
+             const rect = canvas.getBoundingClientRect();
+            const x = canvasX - rect.left;
+            const y = canvasY - rect.top;
+            // Calculate grid coordinates, rounding to nearest intersection center
+            const gridX = Math.round(x / CELL_SIZE - 0.5);
+            const gridY = Math.round(y / CELL_SIZE - 0.5);
+
+            // Check bounds first
+            if (gridX < 0 || gridX >= INTERSECTIONS || gridY < 0 || gridY >= INTERSECTIONS) {
+                return null;
+            }
+
+            // Check proximity to the calculated intersection center
+            const targetCenterX = (gridX + 0.5) * CELL_SIZE;
+            const targetCenterY = (gridY + 0.5) * CELL_SIZE;
+            const clickRadiusSq = (CELL_SIZE * 0.48) ** 2; // How close click needs to be
+            const distSq = (x - targetCenterX) ** 2 + (y - targetCenterY) ** 2;
+
+            if (distSq < clickRadiusSq) {
+                return { x: gridX, y: gridY };
+            }
+            return null;
+        }
+
+        function drawGrid() {
+             ctx.strokeStyle = COLOR_GRID;
+             ctx.lineWidth = 1;
+            const offset = CELL_SIZE * 0.5; // Offset to draw lines between centers
+
+            // Vertical lines
+            for (let i = 0; i < INTERSECTIONS; i++) {
+                const x = (i + 0.5) * CELL_SIZE;
+                ctx.beginPath();
+                ctx.moveTo(x, offset);
+                ctx.lineTo(x, canvas.height - offset);
+                ctx.stroke();
+            }
+            // Horizontal lines
+            for (let i = 0; i < INTERSECTIONS; i++) {
+                const y = (i + 0.5) * CELL_SIZE;
+                ctx.beginPath();
+                ctx.moveTo(offset, y);
+                ctx.lineTo(canvas.width - offset, y);
+                ctx.stroke();
+            }
+
+            // Corner labels
+            ctx.fillStyle = COLOR_CORNER_LABEL;
+            ctx.font = `bold ${LABEL_FONT_SIZE}px sans-serif`;
+            const labelDistOffset = CELL_SIZE * 0.7; // Distance from corner point
+            CORNERS.forEach(corner => {
+                const canvasX = (corner.x + 0.5) * CELL_SIZE;
+                const canvasY = (corner.y + 0.5) * CELL_SIZE;
+                let posX = canvasX, posY = canvasY, textAlign = 'center', textBaseline = 'middle';
+                // Adjust position and alignment based on corner quadrant
+                if (corner.x === 0) { posX -= labelDistOffset; textAlign = 'right'; }
+                else { posX += labelDistOffset; textAlign = 'left'; }
+                if (corner.y === 0) { posY -= labelDistOffset; textBaseline = 'bottom'; }
+                else { posY += labelDistOffset; textBaseline = 'top'; }
+                ctx.textAlign = textAlign;
+                ctx.textBaseline = textBaseline;
+                ctx.fillText(corner.label, posX, posY);
+            });
+            ctx.textAlign = 'center'; // Reset alignment
+            ctx.textBaseline = 'middle';
+        }
+
+        function drawStones() {
+             for (let y = 0; y < INTERSECTIONS; y++) {
+                 for (let x = 0; x < INTERSECTIONS; x++) {
+                    const state = boardState[x][y];
+                    if (state === GREEN || state === RED) {
+                        const canvasX = (x + 0.5) * CELL_SIZE;
+                        const canvasY = (y + 0.5) * CELL_SIZE;
+                        ctx.beginPath();
+                        ctx.arc(canvasX, canvasY, STONE_RADIUS, 0, Math.PI * 2);
+
+                        // Gradient for shading
+                        const gradient = ctx.createRadialGradient(
+                            canvasX - STONE_RADIUS * 0.3, canvasY - STONE_RADIUS * 0.3, STONE_RADIUS * 0.1, // Highlight position and size
+                            canvasX, canvasY, STONE_RADIUS * 1.1 // Outer edge of gradient
+                        );
+                        const baseColor = (state === GREEN) ? COLOR_GREEN_STONE : COLOR_RED_STONE;
+                        const highlightColor = (state === GREEN) ? COLOR_GREEN_HIGHLIGHT : COLOR_RED_HIGHLIGHT;
+                        gradient.addColorStop(0, highlightColor); // Center highlight
+                        gradient.addColorStop(0.8, baseColor);   // Main color
+                        gradient.addColorStop(1, tinycolor(baseColor).darken(15).toString()); // Darker edge shade
+
+                        ctx.fillStyle = gradient;
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        function highlightValidMoves() {
+            if (gameOver || currentPlayer !== PLAYER1 || !validMovesCache || validMovesCache.length === 0) return;
+            ctx.strokeStyle = COLOR_VALID_MOVE; // Use the goldish color
+            ctx.lineWidth = 2; // Thickness of the highlight ring
+            ctx.globalAlpha = 0.8; // Make highlight slightly transparent
+
+            validMovesCache.forEach(move => {
+                const canvasX = (move.x + 0.5) * CELL_SIZE;
+                const canvasY = (move.y + 0.5) * CELL_SIZE;
+                ctx.beginPath();
+                // Draw a ring slightly larger than the stone
+                ctx.arc(canvasX, canvasY, HIGHLIGHT_RADIUS, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+            ctx.globalAlpha = 1.0; // Reset alpha
+        }
+
+        function drawBoard() {
+            if (!ctx) return;
+            ctx.fillStyle = COLOR_BACKGROUND;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            highlightValidMoves(); // Draw highlights first
+            drawStones(); // Draw stones on top
+        }
+
+        function isCorner(x, y) {
+            return (x === 0 && y === 0) || (x === GRID_SIZE && y === 0) || (x === 0 && y === GRID_SIZE) || (x === GRID_SIZE && y === GRID_SIZE);
+         }
+
+        function calculateValidMoves() {
+             validMovesCache = []; // Clear previous cache
+            if (gameOver || !greenStonePos) return validMovesCache; // No moves if game over or stone missing
+
+            const { x, y } = greenStonePos;
+            const potentialMoves = [
+                { x: x, y: y - 1 }, // Up
+                { x: x, y: y + 1 }, // Down
+                { x: x - 1, y: y }, // Left
+                { x: x + 1, y: y }  // Right
+            ];
+
+            potentialMoves.forEach(move => {
+                // Check bounds (0 to 8) and if the target intersection is empty (0)
+                if (move.x >= 0 && move.x < INTERSECTIONS &&
+                    move.y >= 0 && move.y < INTERSECTIONS &&
+                    boardState[move.x][move.y] === EMPTY) {
+                    validMovesCache.push(move);
+                }
+            });
+            return validMovesCache;
+        }
+
+        function checkGameOver() {
+             // Condition 1: Player 1 just moved TO a corner. (Checked AFTER P1 moves, when currentPlayer is 2)
+             if (currentPlayer === PLAYER2 && isCorner(greenStonePos.x, greenStonePos.y)) {
+                 console.log(`Game Over Check: P1 landed on corner (${greenStonePos.x}, ${greenStonePos.y}). P2 Wins.`);
+                 gameOver = true;
+                 winner = PLAYER2;
+                 return true; // Game ended because P1 moved to a corner
+             }
+
+             // Condition 2: Player 1 has no valid moves left (Checked BEFORE P1's turn starts, when currentPlayer is 1)
+             if (currentPlayer === PLAYER1) {
+                 calculateValidMoves(); // Ensure cache is up-to-date
+                 if (validMovesCache.length === 0) {
+                     if (!isCorner(greenStonePos.x, greenStonePos.y)) {
+                         // P1 is trapped, but not on a corner -> P2 loses (P1 wins)
+                         console.log("Game Over Check: P1 has no moves (not on corner). P1 Wins.");
+                         winner = PLAYER1;
+                     } else {
+                          // P1 is trapped AND on a corner -> P1 already lost previously (P2 wins)
+                          console.log("Game Over Check: P1 has no moves (already on corner). P2 Wins.");
+                          winner = PLAYER2;
+                     }
+                     gameOver = true;
+                     return true; // Game ended because P1 is trapped
+                 }
+             }
+
+             return false; // Game continues
+        }
+
+        function updateStatusDisplay() {
+             let htmlContent = "";
+             if (gameOver) {
+                 htmlContent = `Game Over! <span class="winner-text">`;
+                 if (winner === PLAYER1) {
+                     htmlContent += `<span class="player1-text">Player 1 (Green)</span> Wins!</span>`;
+                 } else if (winner === PLAYER2) {
+                     htmlContent += `<span class="player2-text">Player 2 (Red)</span> Wins!</span>`;
+                 } else {
+                     htmlContent += `It's a Draw!</span>`; // Should not happen
+                 }
+                 // Display final turn and stone count
+                 htmlContent += `<br><span class="turn-number">Completed Turns: ${turnNumber - 1}</span> | <span class="stone-count">Red Stones: ${redStoneCount}</span>`;
+             } else {
+                 htmlContent = `<span class="turn-number">Turn ${turnNumber}</span>: `;
+                 if (currentPlayer === PLAYER1) {
+                     htmlContent += `<span class="player1-text">Player 1 (Green)</span>'s move.`;
+                 } else {
+                     htmlContent += `<span class="player2-text">Player 2 (Red)</span> to place stone.`;
+                 }
+                 htmlContent += ` | <span class="stone-count">Red Stones: ${redStoneCount}</span>`;
+             }
+             statusArea.innerHTML = htmlContent;
+        }
+
+        function handlePlayer1Move(targetX, targetY) {
+            const isValid = validMovesCache.some(move => move.x === targetX && move.y === targetY);
+            if (!isValid) return; // Ignore invalid move clicks
+
+            const oldPos = { ...greenStonePos };
+
+            // Update board state: place red where green was, move green
+            boardState[oldPos.x][oldPos.y] = RED;
+            redStoneCount++;
+            boardState[targetX][targetY] = GREEN;
+            greenStonePos = { x: targetX, y: targetY };
+
+            currentPlayer = PLAYER2; // Switch turn to P2
+            validMovesCache = []; // P2 doesn't have highlighted moves
+
+            const landedOnCorner = checkGameOver(); // Check if P1 just lost by moving to corner
+
+            updateStatusDisplay(); // Update text (shows P2's turn or Game Over)
+            drawBoard(); // Redraw board state
+        }
+
+        function handlePlayer2Move(targetX, targetY) {
+             // Can only place on empty spots
+            if (boardState[targetX][targetY] !== EMPTY) return;
+
+            // Place red stone
+            boardState[targetX][targetY] = RED;
+            redStoneCount++;
+
+            currentPlayer = PLAYER1; // Switch turn back to P1
+            turnNumber++; // Increment turn count AFTER P2's move is complete
+
+            const p1Trapped = checkGameOver(); // Check if P1 is trapped NOW, before their turn visually starts
+
+            updateStatusDisplay(); // Update text (shows P1's turn or Game Over)
+
+            if (!p1Trapped) {
+                calculateValidMoves(); // Calculate valid moves for P1's upcoming turn
+            } else {
+                 validMovesCache = []; // No moves to highlight if game is over
+            }
+
+            drawBoard(); // Redraw board showing P2's placement and P1's valid moves (if any)
+        }
+
+        function handleCanvasClick(event) {
+            if (gameOver) return; // Ignore clicks if game over
+            const coords = getBoardCoordinates(event.clientX, event.clientY);
+            if (!coords) return; // Clicked outside valid intersection area
+
+            if (currentPlayer === PLAYER1) {
+                handlePlayer1Move(coords.x, coords.y);
+            } else { // currentPlayer === PLAYER2
+                handlePlayer2Move(coords.x, coords.y);
+            }
+        }
+
+        // --- Debounce Function ---
+        function debounce(func, wait) {
+             let timeout;
+             return function executedFunction(...args) {
+                 const later = () => {
+                     clearTimeout(timeout);
+                     func(...args);
+                 };
+                 clearTimeout(timeout);
+                 timeout = setTimeout(later, wait);
+             };
+        }
+
+        // --- Chart Initialization ---
+        let redStoneChartInstance = null;
+        let distanceChartInstance = null;
+
+        function initializeCharts() {
+            // Ensure Chart.js is loaded
+             if (typeof Chart === 'undefined') {
+                 console.error("Chart.js not loaded.");
+                 return;
+             }
+
+            // Destroy previous charts if they exist to prevent duplicates
+            if (redStoneChartInstance) redStoneChartInstance.destroy();
+            if (distanceChartInstance) distanceChartInstance.destroy();
+
+            // Chart Configuration Options (common settings)
+            const chartOptions = {
+                 responsive: true,
+                 maintainAspectRatio: false, // Allow chart to adapt to container
+                 scales: {
+                     y: {
+                         beginAtZero: true,
+                         ticks: { color: COLOR_TEXT_SECONDARY },
+                         grid: { color: `rgba(${getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb').trim()}, 0.1)` },
+                         title: { display: true, color: COLOR_TEXT_SECONDARY } // Placeholder for specific title
+                     },
+                     x: {
+                         ticks: { color: COLOR_TEXT_SECONDARY, maxRotation: 45, minRotation: 30 },
+                         grid: { display: false },
+                         title: { display: true, color: COLOR_TEXT_SECONDARY } // Placeholder for specific title
+                     }
+                 },
+                 plugins: {
+                     legend: { display: false }, // Generally hide legend for single datasets
+                     title: { display: true, color: COLOR_TEXT_PRIMARY } // Placeholder for specific title
+                 },
+                  // Default font color for Chart.js elements
+                 color: COLOR_TEXT_SECONDARY
+             };
+
+            // --- Red Stone Chart ---
+            const rsCtx = document.getElementById('redStoneChart')?.getContext('2d');
+            if (rsCtx) {
+                const rsLabels = ['Start', 'T1 P1', 'T1 P2', 'T2 P1', 'T2 P2', 'T3 P1', 'T3 P2', 'T4 P1', 'T4 P2', 'T5 P1', 'T5 P2', 'T6 P1', 'T6 P2', 'T7 P1', 'T7 P2', 'T8 P1 (End)'];
+                const rsData = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]; // Cumulative red stones
+
+                // Deep clone and customize options
+                let rsOptions = JSON.parse(JSON.stringify(chartOptions)); // Simple deep clone for options
+                rsOptions.scales.y.title.text = 'Red Stones';
+                rsOptions.scales.x.title.text = 'Player Action within Turn';
+                rsOptions.plugins.title.text = 'Red Stone Accumulation During Optimal Play';
+
+
+                redStoneChartInstance = new Chart(rsCtx, {
+                    type: 'line',
+                    data: {
+                        labels: rsLabels,
+                        datasets: [{
+                            label: 'Cumulative Red Stones',
+                            data: rsData,
+                            borderColor: `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--player2-rgb').trim()})`, // Red stone color
+                            backgroundColor: `rgba(${getComputedStyle(document.documentElement).getPropertyValue('--player2-rgb').trim()}, 0.1)`,
+                            borderWidth: 2,
+                            pointBackgroundColor: `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--player2-rgb').trim()})`,
+                            pointRadius: 3,
+                            tension: 0.1, // Slight curve
+                            fill: true
+                        }]
+                    },
+                    options: rsOptions
+                });
+            } else { console.error("Red Stone Chart canvas not found"); }
+
+            // --- Distance Chart ---
+            const distCtx = document.getElementById('distanceChart')?.getContext('2d');
+             if (distCtx) {
+                // Representative distance decrease for optimal play towards B(8,0) from (4,4)
+                const distLabels = ['Start (T0)', 'End T1', 'End T2', 'End T3', 'End T4', 'End T5', 'End T6', 'End T7', 'End T8 (End)'];
+                const distData = [8, 7, 6, 5, 4, 3, 2, 1, 0]; // Idealized Manhattan distance decrease
+
+                 // Deep clone and customize options
+                 let distOptions = JSON.parse(JSON.stringify(chartOptions));
+                 distOptions.scales.y.title.text = 'Distance (Units)';
+                 distOptions.scales.x.title.text = 'End of Turn';
+                 distOptions.plugins.title.text = 'Green Stone Distance Reduction (Optimal Play)';
+
+
+                distanceChartInstance = new Chart(distCtx, {
+                     type: 'line',
+                     data: {
+                         labels: distLabels,
+                         datasets: [{
+                             label: 'Manhattan Distance to Target Corner B',
+                             data: distData,
+                             borderColor: `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--player1-rgb').trim()})`, // Green stone color
+                             backgroundColor: `rgba(${getComputedStyle(document.documentElement).getPropertyValue('--player1-rgb').trim()}, 0.1)`,
+                             borderWidth: 2,
+                             pointBackgroundColor: `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--player1-rgb').trim()})`,
+                             pointRadius: 3,
+                             tension: 0.1,
+                             fill: true
+                         }]
+                     },
+                     options: distOptions
+                });
+             } else { console.error("Distance Chart canvas not found"); }
+        }
+
+
+        // --- Event Listeners & Initial Load ---
+        const debouncedResize = debounce(() => {
+            resizeCanvas();
+            // Re-initialize charts on resize might be needed if layout changes drastically
+             initializeCharts();
+        }, 150);
+
+        window.addEventListener('resize', debouncedResize);
+        canvas.addEventListener('click', handleCanvasClick);
+        restartButton.addEventListener('click', initializeGame);
+        // Use DOMContentLoaded to ensure elements (like canvas) are ready before initializing
+        document.addEventListener('DOMContentLoaded', initializeGame);
+
+    </script>
+     <!-- Optional: Include tinycolor.js library for better color manipulation -->
+     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/tinycolor/1.6.0/tinycolor.min.js"></script> -->
+</body>
+</html>
